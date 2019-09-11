@@ -58,7 +58,7 @@ public class HttpTask {
     private static String sUrl;
     private static long sTimeDiff = 0;
     private static Handler sHandler;
-    private static L sLog = new L();
+    protected static L sLog = new L();
 
     private String mUrl;
     private String mMethod;
@@ -234,7 +234,7 @@ public class HttpTask {
                         MultipartBody.FORM);
                 if (mFilePaths == null || mFilePaths.isEmpty()) {
                     if (sLog.isEnabled()) {
-                        sLog.e("No file!");
+                        sLog.e("no file!");
                     }
                     return null;
                 }
@@ -242,9 +242,7 @@ public class HttpTask {
                 for (String path : mFilePaths) {
                     file = new File(path);
                     if (!file.exists()) {
-                        if (sLog.isEnabled()) {
-                            sLog.w("File[%s] not exist", path);
-                        }
+                        sLog.w("file[%s] not exist", path);
                         continue;
                     }
                     bodyBuilder.addFormDataPart("file",
@@ -425,7 +423,7 @@ public class HttpTask {
                 if (null != callBack) {
                     callBack.onHttpStart(HttpTask.this);
                 } else {
-                    sLog.w("HttpTask's callBack was destroyed");
+                    sLog.w("callBack was destroyed");
                 }
             }
         });
@@ -446,7 +444,7 @@ public class HttpTask {
                 if (null != callBack) {
                     callBack.onHttpSuccess(HttpTask.this, entity);
                 } else {
-                    sLog.w("HttpTask's callBack was destroyed");
+                    sLog.w("callBack was destroyed");
                 }
                 if (null != mFlowCallBack) {
                     mFlowCallBack.onSuccess(HttpTask.this, entity, modelStr);
@@ -474,7 +472,7 @@ public class HttpTask {
                 if (null != callBack) {
                     callBack.onHttpFailed(HttpTask.this, errorCode, message);
                 } else {
-                    sLog.w("HttpTask's callBack was destroyed");
+                    sLog.w("callBack was destroyed");
                 }
                 if (null != mFlowCallBack) {
                     mFlowCallBack.onFailed(HttpTask.this, errorCode, message);
