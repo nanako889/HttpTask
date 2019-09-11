@@ -79,8 +79,7 @@ public class HttpTask {
 
     public static void init(boolean isDebug, Context context, String url,
                             ICommonHeadersAndParameters iCommonHeadersAndParameters,
-                            ICommonErrorDeal iCommonErrorDeal,
-                            boolean chinaVersion) {
+                            ICommonErrorDeal iCommonErrorDeal, String certificateAssetsName) {
         sDebug = isDebug;
         sLog.setFilterTag("[http]");
         sLog.setEnabled(isDebug);
@@ -104,7 +103,7 @@ public class HttpTask {
         //builder.writeTimeout(30,TimeUnit.SECONDS);
         try {
             if (url.startsWith("https")) {
-                InputStream inputStream = context.getAssets().open(getPemFileName(chinaVersion));
+                InputStream inputStream = context.getAssets().open(certificateAssetsName);
                 if (inputStream != null) {
                     CustomTrust.setTrust(builder, inputStream);
                 }
@@ -119,14 +118,6 @@ public class HttpTask {
         if (sICommonHeadersAndParameters != null) {
             sICommonHeadersAndParameters.init(sContext);
         }
-    }
-
-    private static String getPemFileName(boolean chinaVersion) {
-        sLog.w(chinaVersion ? "china version" : "world version");
-        if (chinaVersion) {
-            return "ssl_china.pem";
-        }
-        return "ssl.pem";
     }
 
     public static Context getContext() {
