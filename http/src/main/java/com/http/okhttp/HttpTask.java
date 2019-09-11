@@ -1,8 +1,6 @@
 package com.http.okhttp;
 
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.os.Handler;
 import android.text.TextUtils;
 import android.webkit.MimeTypeMap;
@@ -14,8 +12,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -51,48 +47,53 @@ public class HttpTask {
 
     public static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     public static final int FAILUE = -1;
-
+    public static final String SYSTEM_ERROR = "system error";
+    public static final String HTTP_ERROR = "http_error";
     private static boolean sDebug;
     private static Context sContext;
     private static OkHttpClient sOkHttpClient;
-
     private static Gson sGson;
-
-    private static IHttpHeadersAndParams sIHttpHeadersAndParams;
-    private static IDealCommonError sIDealCommonError;
-
+    private static ICommonHeadersAndParameters sICommonHeadersAndParameters;
+    private static ICommonErrorDeal sICommonErrorDeal;
     private static String sUrl;
-
-    /**
-     * 本地时间与服务器上时间的差值
-     */
     private static long sTimeDiff = 0;
-
     private static Handler sHandler;
-
     private static L sLog = new L();
 
-    public static void init(boolean isDebug,
-                            Context context,
-                            String url,
-                            IHttpHeadersAndParams iHttpHeadersAndParams,
-                            IDealCommonError iDealCommonError,
+    private String mUrl;
+    private String mMethod;
+    private HashMap<String, Object> mParams;
+    private List<String> mFilePaths;
+    private Class mResponseClass;
+    private FlowCallBack mFlowCallBack;
+    private WeakReference<CallBack> mWrCallBack;
+    private FlowCallBack mBeforeCallBack;
+    private Object mBackParam;
+    private Map<String, Object> mExtraParams;
+    private FlowCallBack mBackgroundBeforeCallBack;
+    private boolean mCanceled;
+    private boolean mFinished;
+    private BODY_TYPE mBodyType = BODY_TYPE.POST;
+    private boolean mGlobalDeal = true;
+    private boolean mNoCommonParam = false;
+
+    public static void init(boolean isDebug, Context context, String url,
+                            ICommonHeadersAndParameters iCommonHeadersAndParameters,
+                            ICommonErrorDeal iCommonErrorDeal,
                             boolean chinaVersion) {
         sDebug = isDebug;
         sLog.setFilterTag("[http]");
         sLog.setEnabled(isDebug);
         sContext = context;
         sUrl = url;
-        sIHttpHeadersAndParams = iHttpHeadersAndParams;
-        sIDealCommonError = iDealCommonError;
+        sICommonHeadersAndParameters = iCommonHeadersAndParameters;
+        sICommonErrorDeal = iCommonErrorDeal;
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
         HttpLoggingInterceptor loggingInterceptor =
                 new HttpLoggingInterceptor(new HttpLoggingInterceptor.Logger() {
                     @Override
                     public void log(String message) {
-                        if (sLog.isEnabled()) {
-                            sLog.jsonV(message);
-                        }
+                        sLog.jsonV(message);
                     }
                 });
         loggingInterceptor.setLevel(isDebug ? HttpLoggingInterceptor.Level.BODY :
@@ -107,7 +108,6 @@ public class HttpTask {
                 if (inputStream != null) {
                     CustomTrust.setTrust(builder, inputStream);
                 }
-                //trustAllCerts(builder);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -116,61 +116,17 @@ public class HttpTask {
         sOkHttpClient = builder.build();
         sGson = new Gson();
         sHandler = new Handler();
-        if (sIHttpHeadersAndParams != null) {
-            sIHttpHeadersAndParams.init(sContext);
+        if (sICommonHeadersAndParameters != null) {
+            sICommonHeadersAndParameters.init(sContext);
         }
     }
 
     private static String getPemFileName(boolean chinaVersion) {
         sLog.w(chinaVersion ? "china version" : "world version");
-        if (/*BuildConfig.BUILD_TYPE.contains("China")*/chinaVersion) {
+        if (chinaVersion) {
             return "ssl_china.pem";
         }
         return "ssl.pem";
-    }
-
-    /**
-     * 信任所有证书
-     */
-    private static void trustAllCerts(OkHttpClient.Builder builder) {
-        final X509TrustManager[] trustAllCerts = new X509TrustManager[]{
-                new X509TrustManager() {
-                    @Override
-                    public void checkClientTrusted(java.security.cert.X509Certificate[] chain,
-                                                   String authType) {
-                    }
-
-                    @Override
-                    public void checkServerTrusted(java.security.cert.X509Certificate[] chain,
-                                                   String authType) {
-                    }
-
-                    @Override
-                    public X509Certificate[] getAcceptedIssuers() {
-                        return new X509Certificate[]{};
-                    }
-                }
-        };
-
-        // Install the all-trusting trust manager
-        try {
-            SSLContext sslContext = SSLContext.getInstance("SSL");
-            sslContext.init(null, trustAllCerts, new SecureRandom());
-            // Create an ssl socket factory with our all-trusting manager
-            final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
-            builder.sslSocketFactory(sslSocketFactory, trustAllCerts[0]);
-            builder.hostnameVerifier(new HostnameVerifier() {
-                @Override
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }
-            });
-
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        } catch (KeyManagementException e) {
-            e.printStackTrace();
-        }
     }
 
     public static Context getContext() {
@@ -204,51 +160,6 @@ public class HttpTask {
                 flowCallBack);
     }
 
-    private String mUrl;
-    private String mMethod;
-    private HashMap<String, Object> mParams;
-    /**
-     * mParams=null的时候上传这个数据
-     */
-    private String mRawParam;
-    /**
-     * 需要上传的文件列表
-     */
-    private List<String> mFilePaths;
-    private Class mResponseClass;
-    private FlowCallBack mFlowCallBack;
-    private WeakReference<CallBack> mWrCallBack;
-    private FlowCallBack mBeforeCallBack;
-    private Object mBackParam;
-    private Map<String, Object> mExtraParams;
-    private FlowCallBack mBackgroundBeforeCallBack;
-
-    private boolean mCanceled;
-    private boolean mFinished;
-
-    private BODY_TYPE mBodyType = BODY_TYPE.POST;
-
-    /**
-     * 失败之后，统一处理失败code（百度地图不需要，故增加此变量）
-     */
-    private boolean mGlobalDeal = true;
-
-    /**
-     * 百度地图不需要增加公共参数
-     */
-    private boolean mNoCommonParam = false;
-
-    /**
-     * @param url
-     * @param method
-     * @param params
-     * @param filePaths
-     * @param responseClass
-     * @param backParam
-     * @param beforeCallBack 子线程中运行且在callback之前被调用（强引用，处理与ui无关的内容）
-     * @param callBack       主线程中运行（对callBack使用弱引用，避免内存泄漏,处理与ui有关的内容）
-     * @param flowCallBack   子线程中运行且在callback之后被调用（强引用，处理与ui无关的内容）
-     */
     private HttpTask(
             String url,
             String method,
@@ -290,11 +201,6 @@ public class HttpTask {
         return this;
     }
 
-    public HttpTask rawParam(String param) {
-        mRawParam = param;
-        return this;
-    }
-
     public HttpTask setUrl(String url) {
         mUrl = url;
         return this;
@@ -307,27 +213,28 @@ public class HttpTask {
     private Request dealRequest() {
         try {
 
-            if (sIHttpHeadersAndParams != null && mBodyType != BODY_TYPE.UPLOAD && !mNoCommonParam) {
-                mParams = sIHttpHeadersAndParams.getParams(mMethod, mParams);
+            if (sICommonHeadersAndParameters != null && mBodyType != BODY_TYPE.UPLOAD && !mNoCommonParam) {
+                mParams = sICommonHeadersAndParameters.getParams(mMethod, mParams);
             }
             if (mParams == null) {
                 mParams = new HashMap<>();
             }
             final Request.Builder reqBuilder = new Request.Builder();
-            if (sIHttpHeadersAndParams != null) {
-                Map<String, String> headers = sIHttpHeadersAndParams.getHeaders();
+            if (sICommonHeadersAndParameters != null) {
+                Map<String, String> headers = sICommonHeadersAndParameters.getHeaders();
                 if (headers != null && !headers.isEmpty()) {
                     for (Map.Entry<String, String> entry : headers.entrySet()) {
                         reqBuilder.addHeader(entry.getKey(), entry.getValue());
                     }
                 }
             }
-            if (mBodyType == BODY_TYPE.UPLOAD) {//上传文件(请知悉：上传文件目前没有用到这个逻辑也没有经过实际测试)
+            if (mBodyType == BODY_TYPE.UPLOAD) {
+                //unchecked
                 MultipartBody.Builder bodyBuilder = new MultipartBody.Builder().setType(
                         MultipartBody.FORM);
                 if (mFilePaths == null || mFilePaths.isEmpty()) {
                     if (sLog.isEnabled()) {
-                        sLog.e("没有需要上传的文件");
+                        sLog.e("No file!");
                     }
                     return null;
                 }
@@ -336,7 +243,7 @@ public class HttpTask {
                     file = new File(path);
                     if (!file.exists()) {
                         if (sLog.isEnabled()) {
-                            sLog.w("文件%s不存在", path);
+                            sLog.w("File[%s] not exist", path);
                         }
                         continue;
                     }
@@ -358,9 +265,9 @@ public class HttpTask {
                 //StringBuilder urlBuilder;
                 String url = mUrl + (!TextUtils.isEmpty(mMethod) ? "/" + mMethod : "");
                 Set<Map.Entry<String, Object>> entrySet = mParams.entrySet();
-                if (mBodyType == BODY_TYPE.POST) {//post请求
+                if (mBodyType == BODY_TYPE.POST) {
                     reqBuilder.url(url).post(RequestBody.create(JSON, getJsonParam()));
-                } else if (mBodyType == BODY_TYPE.GET) {//get请求
+                } else if (mBodyType == BODY_TYPE.GET) {
                     StringBuilder urlBuilder = new StringBuilder(url);
                     urlBuilder.append("?");
                     for (Map.Entry<String, Object> entry : entrySet) {
@@ -369,9 +276,7 @@ public class HttpTask {
                                 .append(entry.getValue())
                                 .append("&");
                     }
-
-                    urlBuilder = urlBuilder.replace(urlBuilder.length() - 1,
-                                                    urlBuilder.length(),
+                    urlBuilder = urlBuilder.replace(urlBuilder.length() - 1, urlBuilder.length(),
                                                     "");
                     reqBuilder.url(urlBuilder.toString());
                 } else if (mBodyType == BODY_TYPE.PATCH) {
@@ -390,9 +295,6 @@ public class HttpTask {
 
     private String getJsonParam() {
         if (mParams == null || mParams.isEmpty()) {
-            if (!TextUtils.isEmpty(mRawParam)) {
-                return mRawParam;
-            }
             return "{}";
         }
         try {
@@ -403,14 +305,11 @@ public class HttpTask {
         return "{}";
     }
 
-    public Object executeAsync() {
-        return executeAsync(null);
+    public Object executeSync() {
+        return executeSync(null);
     }
 
-    public Object executeAsync(final IDataConverter iDataConverter) {
-        if (!isNetAvailable(sContext)) {
-            return null;
-        }
+    public Object executeSync(final IDataConverter iDataConverter) {
         Request request = dealRequest();
         if (request == null) {
             sLog.e("request == null");
@@ -435,7 +334,7 @@ public class HttpTask {
                     return iDataConverter.doConvert(result, mResponseClass);
                 }
             } else {
-                sLog.e("http error status code:%d", response.code());
+                sLog.e("http error status code[%d]", response.code());
                 return null;
             }
 
@@ -446,9 +345,16 @@ public class HttpTask {
         }
     }
 
-    /**
-     * @param iDataConverter 转换数据
-     */
+    private String getImportantMessage(Exception exception) {
+        String message = exception.getMessage();
+        StringBuilder sb = new StringBuilder();
+        if (sDebug) {
+            sb.append("api:").append(mMethod).append(",");
+        }
+        sb.append(message == null ? SYSTEM_ERROR : message);
+        return sb.toString();
+    }
+
     public HttpTask execute(final IDataConverter iDataConverter) {
         Request request = dealRequest();
         if (request == null) {
@@ -462,10 +368,7 @@ public class HttpTask {
             public void onFailure(Call call, IOException e) {
                 e.printStackTrace();
                 sLog.e(e);
-                String errMessage = e.getMessage();
-                onHttpFailed(FAILUE,
-                             (sDebug ? "接口:" + mMethod + "," : "") + errMessage == null ?
-                                     "Failure" : errMessage);
+                onHttpFailed(FAILUE, getImportantMessage(e));
             }
 
             @Override
@@ -488,15 +391,13 @@ public class HttpTask {
                             onHttpSuccess(result, iDataConverter.doConvert(result, mResponseClass));
                         }
                     } else {
-                        sLog.e("http error status code:%d", response.code());
-                        onHttpFailed(response.code(), "response failed");
+                        sLog.e("http error status code[%d]", response.code());
+                        onHttpFailed(FAILUE, HTTP_ERROR);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                    if (sLog.isEnabled()) {
-                        sLog.e(e);
-                    }
-                    onHttpFailed(FAILUE, e != null ? e.getMessage() : "system error");
+                    sLog.e(e);
+                    onHttpFailed(FAILUE, getImportantMessage(e));
                 } finally {
                     response.close();
                 }
@@ -563,8 +464,8 @@ public class HttpTask {
         sHandler.post(new Runnable() {
             @Override
             public void run() {
-                if (sIDealCommonError != null && mGlobalDeal) {
-                    sIDealCommonError.onFailed(HttpTask.this, errorCode, message);
+                if (sICommonErrorDeal != null && mGlobalDeal) {
+                    sICommonErrorDeal.onFailed(HttpTask.this, errorCode, message);
                 }
                 if (null != mBeforeCallBack) {
                     mBeforeCallBack.onFailed(HttpTask.this, errorCode, message);
@@ -670,7 +571,7 @@ public class HttpTask {
         return mExtraParams == null ? 0 : mExtraParams.size();
     }
 
-    public interface IDealCommonError {
+    public interface ICommonErrorDeal {
         void onFailed(HttpTask httpTask, int code, String message);
     }
 
@@ -736,7 +637,7 @@ public class HttpTask {
         }
     }
 
-    public interface IHttpHeadersAndParams {
+    public interface ICommonHeadersAndParameters {
 
         void init(Context context);
 
@@ -779,16 +680,44 @@ public class HttpTask {
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
     }
 
-    private boolean isNetAvailable(Context context) {
+    private static void trustAllCerts(OkHttpClient.Builder builder) {
+        final X509TrustManager[] trustAllCerts = new X509TrustManager[]{
+                new X509TrustManager() {
+                    @Override
+                    public void checkClientTrusted(java.security.cert.X509Certificate[] chain,
+                                                   String authType) {
+                    }
+
+                    @Override
+                    public void checkServerTrusted(java.security.cert.X509Certificate[] chain,
+                                                   String authType) {
+                    }
+
+                    @Override
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[]{};
+                    }
+                }
+        };
+
+        // Install the all-trusting trust manager
         try {
-            ConnectivityManager connectivityManager =
-                    (ConnectivityManager) context.getSystemService(
-                            Context.CONNECTIVITY_SERVICE);
-            NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
-            return null != networkInfo && networkInfo.isAvailable();
-        } catch (Exception e) {
+            SSLContext sslContext = SSLContext.getInstance("SSL");
+            sslContext.init(null, trustAllCerts, new SecureRandom());
+            // Create an ssl socket factory with our all-trusting manager
+            final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+            builder.sslSocketFactory(sslSocketFactory, trustAllCerts[0]);
+            builder.hostnameVerifier(new HostnameVerifier() {
+                @Override
+                public boolean verify(String hostname, SSLSession session) {
+                    return true;
+                }
+            });
+
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (KeyManagementException e) {
             e.printStackTrace();
         }
-        return true;
     }
 }
