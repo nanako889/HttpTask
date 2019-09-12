@@ -59,6 +59,12 @@ public class HttpTask {
     private static long sTimeDiff = 0;
     private static Handler sHandler;
     protected static L sLog = new L();
+    private static String sKeyCode = "code";
+    private static String sKeyMessage = "message";
+
+    private enum BODY_TYPE {
+        GET, POST, UPLOAD, PATCH, DELETE
+    }
 
     private String mUrl;
     private String mMethod;
@@ -79,7 +85,8 @@ public class HttpTask {
 
     public static void init(boolean isDebug, Context context, String url,
                             ICommonHeadersAndParameters iCommonHeadersAndParameters,
-                            ICommonErrorDeal iCommonErrorDeal, String certificateAssetsName) {
+                            ICommonErrorDeal iCommonErrorDeal, String keyOfCode,
+                            String keyOfMessage, String certificateAssetsName) {
         sDebug = isDebug;
         sLog.setFilterTag("[http]");
         sLog.setEnabled(isDebug);
@@ -87,6 +94,8 @@ public class HttpTask {
         sUrl = url;
         sICommonHeadersAndParameters = iCommonHeadersAndParameters;
         sICommonErrorDeal = iCommonErrorDeal;
+        sKeyCode = keyOfCode;
+        sKeyMessage = keyOfMessage;
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
         HttpLoggingInterceptor loggingInterceptor =
                 new HttpLoggingInterceptor(new HttpLoggingInterceptor.Logger() {
@@ -313,8 +322,11 @@ public class HttpTask {
             if (response.isSuccessful()) {
                 String result = response.body().string();
                 if (iDataConverter == null) {
-                    HttpResponse httpResponse = sGson.fromJson(result, HttpResponse.class);
-                    if (httpResponse.getCode() == 0) {
+                    Map<String,String> httpResponse = sGson.fromJson(result, Map.class);
+                    String code = httpResponse.get(sKeyCode);
+                    String message = httpResponse.get(sKeyMessage);
+                    int iCode = Integer.parseInt(code);
+                    if (iCode == 0) {
                         return sGson.fromJson(result, mResponseClass);
                     } else {
                         return httpResponse;
@@ -332,16 +344,6 @@ public class HttpTask {
             sLog.e(e);
             return null;
         }
-    }
-
-    private String getImportantMessage(Exception exception) {
-        String message = exception.getMessage();
-        StringBuilder sb = new StringBuilder();
-        if (sDebug) {
-            sb.append("api:").append(mMethod).append(",");
-        }
-        sb.append(message == null ? SYSTEM_ERROR : message);
-        return sb.toString();
     }
 
     public HttpTask execute(final IDataConverter iDataConverter) {
@@ -370,11 +372,14 @@ public class HttpTask {
                     if (response.isSuccessful()) {
                         String result = response.body().string();
                         if (iDataConverter == null) {
-                            HttpResponse httpResponse = sGson.fromJson(result, HttpResponse.class);
-                            if (httpResponse.getCode() == 0) {
+                            Map<String,String> httpResponse = sGson.fromJson(result, Map.class);
+                            String code = httpResponse.get(sKeyCode);
+                            String message = httpResponse.get(sKeyMessage);
+                            int iCode = Integer.parseInt(code);
+                            if (iCode == 0) {
                                 onHttpSuccess(result, sGson.fromJson(result, mResponseClass));
                             } else {
-                                onHttpFailed(httpResponse.getCode(), httpResponse.getMessage());
+                                onHttpFailed(iCode, message);
                             }
                         } else {
                             onHttpSuccess(result, iDataConverter.doConvert(result, mResponseClass));
@@ -613,19 +618,6 @@ public class HttpTask {
         Object doConvert(String dataStr, Class responseClass);
     }
 
-    public static class HttpResponse {
-        private int status;
-        private String msg = "";
-
-        public int getCode() {
-            return status;
-        }
-
-        public String getMessage() {
-            return msg;
-        }
-    }
-
     public interface ICommonHeadersAndParameters {
 
         void init(Context context);
@@ -634,10 +626,6 @@ public class HttpTask {
 
         HashMap<String, Object> getParams(String method, HashMap<String, Object> params);
 
-    }
-
-    private enum BODY_TYPE {
-        GET, POST, UPLOAD, PATCH, DELETE
     }
 
     private static void calculateTimeDiff(Response response) {
@@ -708,5 +696,15 @@ public class HttpTask {
         } catch (KeyManagementException e) {
             e.printStackTrace();
         }
+    }
+
+    private String getImportantMessage(Exception exception) {
+        String message = exception.getMessage();
+        StringBuilder sb = new StringBuilder();
+        if (sDebug) {
+            sb.append("api:").append(mMethod).append(",");
+        }
+        sb.append(message == null ? SYSTEM_ERROR : message);
+        return sb.toString();
     }
 }
