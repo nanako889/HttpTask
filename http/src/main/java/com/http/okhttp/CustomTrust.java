@@ -18,9 +18,13 @@ package com.http.okhttp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
+import java.security.KeyManagementException;
 import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -39,7 +43,7 @@ import okhttp3.OkHttpClient;
 
 public final class CustomTrust {
 
-    public static void setTrust(OkHttpClient.Builder builder, InputStream inputStream) {
+    protected static void setTrust(OkHttpClient.Builder builder, InputStream inputStream) {
         try {
             builder.connectionSpecs(Arrays.asList(ConnectionSpec.MODERN_TLS,
                                                   ConnectionSpec.CLEARTEXT));
@@ -133,6 +137,48 @@ public final class CustomTrust {
             return keyStore;
         } catch (IOException e) {
             throw new AssertionError(e);
+        }
+    }
+
+    protected static void trustAllCerts(OkHttpClient.Builder builder) {
+        final X509TrustManager[] trustAllCerts = new X509TrustManager[]{
+                new X509TrustManager() {
+                    @Override
+                    public void checkClientTrusted(java.security.cert.X509Certificate[] chain,
+                                                   String authType) {
+                    }
+
+                    @Override
+                    public void checkServerTrusted(java.security.cert.X509Certificate[] chain,
+                                                   String authType) {
+                    }
+
+                    @Override
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[]{};
+                    }
+                }
+        };
+
+        // Install the all-trusting trust manager
+        try {
+            SSLContext sslContext = SSLContext.getInstance("SSL");
+            sslContext.init(null, trustAllCerts, new SecureRandom());
+            // Create an ssl socket factory with our all-trusting manager
+            final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+            builder.sslSocketFactory(sslSocketFactory, trustAllCerts[0]);
+            builder.hostnameVerifier(new HostnameVerifier() {
+                @Override
+                public boolean verify(String hostname, SSLSession session) {
+                    HttpTask.sLog.d("hostname[%s]");
+                    return true;
+                }
+            });
+
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (KeyManagementException e) {
+            e.printStackTrace();
         }
     }
 }

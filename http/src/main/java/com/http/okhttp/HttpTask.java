@@ -59,8 +59,7 @@ public class HttpTask {
     private static long sTimeDiff = 0;
     private static Handler sHandler;
     protected static L sLog = new L();
-    private static String sKeyCode = "code";
-    private static String sKeyMessage = "message";
+    private static Class sResponseClass;
 
     private enum BODY_TYPE {
         GET, POST, UPLOAD, PATCH, DELETE
@@ -85,8 +84,8 @@ public class HttpTask {
 
     public static void init(boolean isDebug, Context context, String url,
                             ICommonHeadersAndParameters iCommonHeadersAndParameters,
-                            ICommonErrorDeal iCommonErrorDeal, String keyOfCode,
-                            String keyOfMessage, String certificateAssetsName) {
+                            ICommonErrorDeal iCommonErrorDeal, Class responseClass,
+                            String certificateAssetsName) {
         sDebug = isDebug;
         sLog.setFilterTag("[http]");
         sLog.setEnabled(isDebug);
@@ -94,8 +93,7 @@ public class HttpTask {
         sUrl = url;
         sICommonHeadersAndParameters = iCommonHeadersAndParameters;
         sICommonErrorDeal = iCommonErrorDeal;
-        sKeyCode = keyOfCode;
-        sKeyMessage = keyOfMessage;
+        sResponseClass = responseClass;
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
         HttpLoggingInterceptor loggingInterceptor =
                 new HttpLoggingInterceptor(new HttpLoggingInterceptor.Logger() {
@@ -112,9 +110,12 @@ public class HttpTask {
         //builder.writeTimeout(30,TimeUnit.SECONDS);
         try {
             if (url.startsWith("https")) {
-                InputStream inputStream = context.getAssets().open(certificateAssetsName);
-                if (inputStream != null) {
+                if (!TextUtils.isEmpty(certificateAssetsName)) {
+                    InputStream inputStream = context.getAssets().open(certificateAssetsName);
                     CustomTrust.setTrust(builder, inputStream);
+                } else {
+                    sLog.w("notice that you choose trust all certificates");
+                    CustomTrust.trustAllCerts(builder);
                 }
             }
         } catch (Exception e) {
@@ -322,11 +323,12 @@ public class HttpTask {
             if (response.isSuccessful()) {
                 String result = response.body().string();
                 if (iDataConverter == null) {
-                    Map<String, Object> httpResponse = sGson.fromJson(result, Map.class);
-                    String code = httpResponse.get(sKeyCode) + "";
-                    String message = (String) httpResponse.get(sKeyMessage);
-                    int iCode = Integer.parseInt(code);
-                    if (iCode == 0) {
+                    Object httpResponse = sGson.fromJson(result, sResponseClass);
+                    if (!(httpResponse instanceof IHttpResponse)) {
+                        throw new RuntimeException("sResponseClass must implements IHttpResponse");
+                    }
+                    IHttpResponse iHttpResponse = (IHttpResponse) httpResponse;
+                    if (iHttpResponse.getCode() == 0) {
                         return sGson.fromJson(result, mResponseClass);
                     } else {
                         return httpResponse;
@@ -372,14 +374,16 @@ public class HttpTask {
                     if (response.isSuccessful()) {
                         String result = response.body().string();
                         if (iDataConverter == null) {
-                            Map<String, Object> httpResponse = sGson.fromJson(result, Map.class);
-                            String code = httpResponse.get(sKeyCode) + "";
-                            String message = (String) httpResponse.get(sKeyMessage);
-                            int iCode = Integer.parseInt(code);
-                            if (iCode == 0) {
+                            Object httpResponse = sGson.fromJson(result, sResponseClass);
+                            if (!(httpResponse instanceof IHttpResponse)) {
+                                throw new RuntimeException("sResponseClass must implements " +
+                                                                   "IHttpResponse");
+                            }
+                            IHttpResponse iHttpResponse = (IHttpResponse) httpResponse;
+                            if (iHttpResponse.getCode() == 0) {
                                 onHttpSuccess(result, sGson.fromJson(result, mResponseClass));
                             } else {
-                                onHttpFailed(iCode, message);
+                                onHttpFailed(iHttpResponse.getCode(), iHttpResponse.getMessage());
                             }
                         } else {
                             onHttpSuccess(result, iDataConverter.doConvert(result, mResponseClass));
@@ -577,42 +581,12 @@ public class HttpTask {
         void onHttpFailed(HttpTask httpTask, int errorCode, String message);
     }
 
-    public static class SimpleCallBack implements CallBack {
-
-        @Override
-        public void onHttpStart(HttpTask httpTask) {
-
-        }
-
-        @Override
-        public void onHttpSuccess(HttpTask httpTask, Object entity) {
-
-        }
-
-        @Override
-        public void onHttpFailed(HttpTask httpTask, int errorCode, String message) {
-
-        }
-    }
-
     public interface FlowCallBack {
         void onSuccess(HttpTask httpTask, Object entity, String modelStr);
 
         void onFailed(HttpTask httpTask, int errorCode, String message);
     }
 
-    public static class SimpleFlowCallBack implements FlowCallBack {
-
-        @Override
-        public void onSuccess(HttpTask httpTask, Object entity, String modelStr) {
-
-        }
-
-        @Override
-        public void onFailed(HttpTask httpTask, int errorCode, String message) {
-
-        }
-    }
 
     public interface IDataConverter {
         Object doConvert(String dataStr, Class responseClass);
@@ -625,7 +599,12 @@ public class HttpTask {
         Map<String, String> getHeaders();
 
         HashMap<String, Object> getParams(String method, HashMap<String, Object> params);
+    }
 
+    public interface IHttpResponse {
+        int getCode();
+
+        String getMessage();
     }
 
     private static void calculateTimeDiff(Response response) {
@@ -657,47 +636,6 @@ public class HttpTask {
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
     }
 
-    private static void trustAllCerts(OkHttpClient.Builder builder) {
-        final X509TrustManager[] trustAllCerts = new X509TrustManager[]{
-                new X509TrustManager() {
-                    @Override
-                    public void checkClientTrusted(java.security.cert.X509Certificate[] chain,
-                                                   String authType) {
-                    }
-
-                    @Override
-                    public void checkServerTrusted(java.security.cert.X509Certificate[] chain,
-                                                   String authType) {
-                    }
-
-                    @Override
-                    public X509Certificate[] getAcceptedIssuers() {
-                        return new X509Certificate[]{};
-                    }
-                }
-        };
-
-        // Install the all-trusting trust manager
-        try {
-            SSLContext sslContext = SSLContext.getInstance("SSL");
-            sslContext.init(null, trustAllCerts, new SecureRandom());
-            // Create an ssl socket factory with our all-trusting manager
-            final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
-            builder.sslSocketFactory(sslSocketFactory, trustAllCerts[0]);
-            builder.hostnameVerifier(new HostnameVerifier() {
-                @Override
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }
-            });
-
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        } catch (KeyManagementException e) {
-            e.printStackTrace();
-        }
-    }
-
     private String getImportantMessage(Exception exception) {
         String message = exception.getMessage();
         StringBuilder sb = new StringBuilder();
@@ -707,4 +645,36 @@ public class HttpTask {
         sb.append(message == null ? SYSTEM_ERROR : message);
         return sb.toString();
     }
+
+    public static class SimpleCallBack implements CallBack {
+
+        @Override
+        public void onHttpStart(HttpTask httpTask) {
+
+        }
+
+        @Override
+        public void onHttpSuccess(HttpTask httpTask, Object entity) {
+
+        }
+
+        @Override
+        public void onHttpFailed(HttpTask httpTask, int errorCode, String message) {
+
+        }
+    }
+
+    public static class SimpleFlowCallBack implements FlowCallBack {
+
+        @Override
+        public void onSuccess(HttpTask httpTask, Object entity, String modelStr) {
+
+        }
+
+        @Override
+        public void onFailed(HttpTask httpTask, int errorCode, String message) {
+
+        }
+    }
+
 }
