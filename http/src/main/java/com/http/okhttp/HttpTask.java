@@ -323,7 +323,7 @@ public class HttpTask {
                 String result = response.body().string();
                 if (iDataConverter == null) {
                     Map<String, Object> httpResponse = sGson.fromJson(result, Map.class);
-                    String code = (String) httpResponse.get(sKeyCode);
+                    String code = httpResponse.get(sKeyCode) + "";
                     String message = (String) httpResponse.get(sKeyMessage);
                     int iCode = Integer.parseInt(code);
                     if (iCode == 0) {
@@ -373,7 +373,7 @@ public class HttpTask {
                         String result = response.body().string();
                         if (iDataConverter == null) {
                             Map<String, Object> httpResponse = sGson.fromJson(result, Map.class);
-                            String code = (String) httpResponse.get(sKeyCode);
+                            String code = httpResponse.get(sKeyCode) + "";
                             String message = (String) httpResponse.get(sKeyMessage);
                             int iCode = Integer.parseInt(code);
                             if (iCode == 0) {
