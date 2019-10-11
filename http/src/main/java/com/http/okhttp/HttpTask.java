@@ -266,7 +266,7 @@ public class HttpTask {
                 Set<Map.Entry<String, Object>> entrySet = mParams.entrySet();
                 if (mBodyType == BODY_TYPE.POST) {
                     reqBuilder.url(url).post(RequestBody.create(JSON, getJsonParam()));
-                } else if (mBodyType == BODY_TYPE.GET) {
+                } else if (mBodyType == BODY_TYPE.GET || mBodyType == BODY_TYPE.DELETE) {
                     StringBuilder urlBuilder = new StringBuilder(url);
                     urlBuilder.append("?");
                     for (Map.Entry<String, Object> entry : entrySet) {
@@ -280,8 +280,6 @@ public class HttpTask {
                     reqBuilder.url(urlBuilder.toString());
                 } else if (mBodyType == BODY_TYPE.PATCH) {
                     reqBuilder.url(url).patch(RequestBody.create(JSON, getJsonParam()));
-                } else if (mBodyType == BODY_TYPE.DELETE) {
-                    reqBuilder.url(url).delete(RequestBody.create(JSON, getJsonParam()));
                 }
             }
             return reqBuilder.build();
