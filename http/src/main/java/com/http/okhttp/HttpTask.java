@@ -278,6 +278,11 @@ public class HttpTask {
                     urlBuilder = urlBuilder.replace(urlBuilder.length() - 1, urlBuilder.length(),
                                                     "");
                     reqBuilder.url(urlBuilder.toString());
+                    if (mBodyType == BODY_TYPE.GET) {
+                        reqBuilder.get();
+                    } else {
+                        reqBuilder.delete();
+                    }
                 } else if (mBodyType == BODY_TYPE.PATCH) {
                     reqBuilder.url(url).patch(RequestBody.create(JSON, getJsonParam()));
                 }

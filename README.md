@@ -11,7 +11,7 @@ okhttp util
 	}
 	
 	dependencies {
-        implementation 'com.github.qbaowei:HttpTask:v1.0.9'
+        implementation 'com.github.qbaowei:HttpTask:v1.0.10'
     }
     
 #proguard
