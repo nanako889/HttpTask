@@ -187,6 +187,11 @@ public class HttpTask {
         return this;
     }
 
+    public HttpTask upload() {
+        mBodyType = BODY_TYPE.UPLOAD;
+        return this;
+    }
+
     public HttpTask setUrl(String url) {
         mUrl = url;
         return this;
