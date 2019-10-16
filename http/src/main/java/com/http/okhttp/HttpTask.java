@@ -12,24 +12,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.X509TrustManager;
 
 import okhttp3.Call;
 import okhttp3.MediaType;
@@ -68,7 +59,6 @@ public class HttpTask {
     private String mUrl;
     private String mMethod;
     private HashMap<String, Object> mParams;
-    private List<String> mFilePaths;
     private Class mResponseClass;
     private FlowCallBack mFlowCallBack;
     private WeakReference<CallBack> mWrCallBack;
@@ -82,9 +72,12 @@ public class HttpTask {
     private boolean mGlobalDeal = true;
     private boolean mNoCommonParam = false;
 
-    public static void init(boolean isDebug, Context context, String url,
+    public static void init(boolean isDebug,
+                            Context context,
+                            String url,
                             ICommonHeadersAndParameters iCommonHeadersAndParameters,
-                            ICommonErrorDeal iCommonErrorDeal, Class responseClass,
+                            ICommonErrorDeal iCommonErrorDeal,
+                            Class responseClass,
                             String certificateAssetsName) {
         sDebug = isDebug;
         sLog.setFilterTag("[http]");
@@ -95,15 +88,13 @@ public class HttpTask {
         sICommonErrorDeal = iCommonErrorDeal;
         sResponseClass = responseClass;
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
-        HttpLoggingInterceptor loggingInterceptor =
-                new HttpLoggingInterceptor(new HttpLoggingInterceptor.Logger() {
-                    @Override
-                    public void log(String message) {
-                        sLog.jsonV(message);
-                    }
-                });
-        loggingInterceptor.setLevel(isDebug ? HttpLoggingInterceptor.Level.BODY :
-                                            HttpLoggingInterceptor.Level.NONE);
+        HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor(new HttpLoggingInterceptor.Logger() {
+            @Override
+            public void log(String message) {
+                sLog.jsonV(message);
+            }
+        });
+        loggingInterceptor.setLevel(isDebug ? HttpLoggingInterceptor.Level.BODY : HttpLoggingInterceptor.Level.NONE);
         builder.addInterceptor(loggingInterceptor);
         builder.connectTimeout(30, TimeUnit.SECONDS);
         builder.readTimeout(30, TimeUnit.SECONDS);
@@ -141,40 +132,34 @@ public class HttpTask {
         return create(method, params, responseClass, null, null, callBack, null);
     }
 
-    public static HttpTask create(
-            String method,
-            HashMap<String, Object> params,
-            Class responseClass,
-            Object backParam,
-            FlowCallBack beforeCallBack,
-            CallBack callBack,
-            FlowCallBack flowCallBack) {
-        return new HttpTask(
-                sUrl,
-                method,
-                params,
-                null,
-                responseClass,
-                backParam,
-                beforeCallBack,
-                callBack,
-                flowCallBack);
+    public static HttpTask create(String method,
+                                  HashMap<String, Object> params,
+                                  Class responseClass,
+                                  Object backParam,
+                                  FlowCallBack beforeCallBack,
+                                  CallBack callBack,
+                                  FlowCallBack flowCallBack) {
+        return new HttpTask(sUrl,
+                            method,
+                            params,
+                            responseClass,
+                            backParam,
+                            beforeCallBack,
+                            callBack,
+                            flowCallBack);
     }
 
-    private HttpTask(
-            String url,
-            String method,
-            HashMap<String, Object> params,
-            List<String> filePaths,
-            Class responseClass,
-            Object backParam,
-            FlowCallBack beforeCallBack,
-            CallBack callBack,
-            FlowCallBack flowCallBack) {
+    private HttpTask(String url,
+                     String method,
+                     HashMap<String, Object> params,
+                     Class responseClass,
+                     Object backParam,
+                     FlowCallBack beforeCallBack,
+                     CallBack callBack,
+                     FlowCallBack flowCallBack) {
         mUrl = url;
         mMethod = method;
         mParams = params;
-        mFilePaths = filePaths;
         mResponseClass = responseClass;
         mBackParam = backParam;
         mBeforeCallBack = beforeCallBack;
@@ -233,23 +218,33 @@ public class HttpTask {
                 //unchecked
                 MultipartBody.Builder bodyBuilder = new MultipartBody.Builder().setType(
                         MultipartBody.FORM);
-                if (mFilePaths == null || mFilePaths.isEmpty()) {
+                if (mParams == null || mParams.isEmpty()) {
                     if (sLog.isEnabled()) {
                         sLog.e("no file!");
                     }
                     return null;
                 }
                 File file;
-                for (String path : mFilePaths) {
-                    file = new File(path);
-                    if (!file.exists()) {
-                        sLog.w("file[%s] not exist", path);
+                Iterator<Map.Entry<String, Object>> params = mParams.entrySet().iterator();
+                Map.Entry<String, Object> param;
+                String filePath;
+                while (params.hasNext()) {
+                    param = params.next();
+                    if (!(param.getValue() instanceof String)) {
+                        sLog.e("please transfer file's path when upload!!!");
                         continue;
                     }
-                    bodyBuilder.addFormDataPart("file",
+                    filePath = (String) param.getValue();
+                    file = new File(filePath);
+                    if (!file.exists()) {
+                        sLog.w("file[%s] not exist", filePath);
+                        continue;
+                    }
+                    bodyBuilder.addFormDataPart(param.getKey(),
                                                 "",
-                                                RequestBody.create(MediaType.parse(getMimeTypeFromExtension(
-                                                        getFileExtensionFromPath(path))),
+                                                RequestBody.create(MediaType.parse(
+                                                        getMimeTypeFromExtension(
+                                                                getFileExtensionFromPath(filePath))),
                                                                    file));
                 }
 
@@ -271,11 +266,12 @@ public class HttpTask {
                     urlBuilder.append("?");
                     for (Map.Entry<String, Object> entry : entrySet) {
                         urlBuilder.append(entry.getKey())
-                                .append("=")
-                                .append(entry.getValue())
-                                .append("&");
+                                  .append("=")
+                                  .append(entry.getValue())
+                                  .append("&");
                     }
-                    urlBuilder = urlBuilder.replace(urlBuilder.length() - 1, urlBuilder.length(),
+                    urlBuilder = urlBuilder.replace(urlBuilder.length() - 1,
+                                                    urlBuilder.length(),
                                                     "");
                     reqBuilder.url(urlBuilder.toString());
                     if (mBodyType == BODY_TYPE.GET) {
@@ -379,8 +375,7 @@ public class HttpTask {
                         if (iDataConverter == null) {
                             Object httpResponse = sGson.fromJson(result, sResponseClass);
                             if (!(httpResponse instanceof IHttpResponse)) {
-                                throw new RuntimeException("sResponseClass must implements " +
-                                                                   "IHttpResponse");
+                                throw new RuntimeException("sResponseClass must implements " + "IHttpResponse");
                             }
                             IHttpResponse iHttpResponse = (IHttpResponse) httpResponse;
                             if (iHttpResponse.getCode() == 0) {
