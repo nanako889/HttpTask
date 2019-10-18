@@ -259,7 +259,7 @@ public class HttpTask {
                 for (Map.Entry<String, Object> entry : entrySet) {
                     bodyBuilder.addFormDataPart(entry.getKey(), entry.getValue().toString());
                 }
-                String url = mUrl + "/";
+                String url = mUrl + (!TextUtils.isEmpty(mMethod) ? "/" + mMethod : "");
                 reqBuilder.url(url).post(bodyBuilder.build());
             } else {
                 //FormBody.Builder formBuilder;
