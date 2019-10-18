@@ -59,6 +59,7 @@ public class HttpTask {
     private String mUrl;
     private String mMethod;
     private HashMap<String, Object> mParams;
+    private HashMap<String, String> mFiles;
     private Class mResponseClass;
     private FlowCallBack mFlowCallBack;
     private WeakReference<CallBack> mWrCallBack;
@@ -187,8 +188,9 @@ public class HttpTask {
         return this;
     }
 
-    public HttpTask upload() {
+    public HttpTask upload(HashMap<String, String> files) {
         mBodyType = BODY_TYPE.UPLOAD;
+        mFiles = files;
         return this;
     }
 
@@ -223,23 +225,17 @@ public class HttpTask {
                 //unchecked
                 MultipartBody.Builder bodyBuilder = new MultipartBody.Builder().setType(
                         MultipartBody.FORM);
-                if (mParams == null || mParams.isEmpty()) {
-                    if (sLog.isEnabled()) {
-                        sLog.e("no file!");
-                    }
+                if (mFiles == null || mFiles.isEmpty()) {
+                    sLog.e("no file!");
                     return null;
                 }
                 File file;
-                Iterator<Map.Entry<String, Object>> params = mParams.entrySet().iterator();
-                Map.Entry<String, Object> param;
+                Iterator<Map.Entry<String, String>> params = mFiles.entrySet().iterator();
+                Map.Entry<String, String> param;
                 String filePath;
                 while (params.hasNext()) {
                     param = params.next();
-                    if (!(param.getValue() instanceof String)) {
-                        sLog.e("please transfer file's path when upload!!!");
-                        continue;
-                    }
-                    filePath = (String) param.getValue();
+                    filePath = param.getValue();
                     file = new File(filePath);
                     if (!file.exists()) {
                         sLog.w("file[%s] not exist", filePath);
