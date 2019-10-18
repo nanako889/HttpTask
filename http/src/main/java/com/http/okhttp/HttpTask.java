@@ -222,7 +222,6 @@ public class HttpTask {
                 }
             }
             if (mBodyType == BODY_TYPE.UPLOAD) {
-                //unchecked
                 MultipartBody.Builder bodyBuilder = new MultipartBody.Builder().setType(
                         MultipartBody.FORM);
                 if (mFiles == null || mFiles.isEmpty()) {
@@ -241,11 +240,18 @@ public class HttpTask {
                         sLog.w("file[%s] not exist", filePath);
                         continue;
                     }
-                    bodyBuilder.addFormDataPart(param.getKey(),
-                                                "",
-                                                RequestBody.create(MediaType.parse(
-                                                        getMimeTypeFromExtension(
-                                                                getFileExtensionFromPath(filePath))),
+                    String key = param.getKey();
+                    String fileExtension = getFileExtensionFromPath(filePath);
+                    String fileName = key + "." + fileExtension;
+                    String mineType = getMimeTypeFromExtension(fileExtension);
+                    sLog.d("add upload file[%s], key,fileName[%s],fileExtension[%s],mineType[%s]",
+                           key,
+                           fileName,
+                           fileExtension,
+                           mineType);
+                    bodyBuilder.addFormDataPart(key,
+                                                fileName,
+                                                RequestBody.create(MediaType.parse(mineType),
                                                                    file));
                 }
 
@@ -253,8 +259,8 @@ public class HttpTask {
                 for (Map.Entry<String, Object> entry : entrySet) {
                     bodyBuilder.addFormDataPart(entry.getKey(), entry.getValue().toString());
                 }
-
-                reqBuilder.url(mUrl).post(bodyBuilder.build());
+                String url = mUrl + "/";
+                reqBuilder.url(url).post(bodyBuilder.build());
             } else {
                 //FormBody.Builder formBuilder;
                 //StringBuilder urlBuilder;
