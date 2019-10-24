@@ -51,6 +51,7 @@ public class HttpTask {
     private static Handler sHandler;
     protected static L sLog = new L();
     private static Class sResponseClass;
+    private static boolean sNeedCheckHttpStatusCode = true;
 
     private enum BODY_TYPE {
         GET, POST, UPLOAD, PATCH, DELETE
@@ -124,6 +125,10 @@ public class HttpTask {
 
     public static Context getContext() {
         return sContext;
+    }
+
+    public static void setNeedCheckHttpStatusCode(boolean needCheckHttpStatusCode) {
+        sNeedCheckHttpStatusCode = needCheckHttpStatusCode;
     }
 
     public static HttpTask create(String method,
@@ -326,7 +331,7 @@ public class HttpTask {
             if (mResponseClass != null) {
                 sLog.v(mResponseClass.getSimpleName());
             }
-            if (response.isSuccessful()) {
+            if (!sNeedCheckHttpStatusCode || response.isSuccessful()) {
                 String result = response.body().string();
                 if (iDataConverter == null) {
                     Object httpResponse = sGson.fromJson(result, sResponseClass);
