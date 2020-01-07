@@ -73,6 +73,7 @@ public class HttpTask {
     private BODY_TYPE mBodyType = BODY_TYPE.POST;
     private boolean mGlobalDeal = true;
     private boolean mNoCommonParam = false;
+    private long mStartTimestamp;
 
     public static void init(boolean isDebug,
                             Context context,
@@ -365,6 +366,7 @@ public class HttpTask {
             sLog.e("request == null");
             return this;
         }
+        mStartTimestamp = System.currentTimeMillis();
         onHttpStart();
         sOkHttpClient.newCall(request).enqueue(new okhttp3.Callback() {
 
@@ -408,11 +410,23 @@ public class HttpTask {
                     onHttpFailed(FAILUE, getImportantMessage(e));
                 } finally {
                     response.close();
+                    long currTimestamp = System.currentTimeMillis();
+                    long diff = currTimestamp - mStartTimestamp;
+                    sLog.w(mMethod + "," + formatApiTime(diff));
                 }
 
             }
         });
         return this;
+    }
+
+    private String formatApiTime(long diff) {
+        if (diff < 1000) {
+            return diff + "ms";
+        }
+        long sec = diff / 1000;
+        long ms = diff % 1000;
+        return sec + "s" + ms + "ms";
     }
 
     public String getRealUrl() {
