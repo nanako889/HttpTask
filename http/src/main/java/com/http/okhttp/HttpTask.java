@@ -382,16 +382,17 @@ public class HttpTask {
                 try {
                     calculateTimeDiff(response);
                     if (mResponseClass != null) {
-                        sLog.v(mResponseClass.getName());
+                        sLog.v("response[%s]", mResponseClass.getName());
                     }
                     if (sResponseClass != null) {
-                        sLog.v(sResponseClass.getName());
+                        sLog.v("sResponse[%s]", sResponseClass.getName());
                     }
                     if (response.isSuccessful()) {
                         String result = response.body().string();
                         if (iDataConverter == null) {
                             Object httpResponse = sGson.fromJson(result, sResponseClass);
                             if (!(httpResponse instanceof IHttpResponse)) {
+                                sLog.e("result[%s]", result);
                                 throw new RuntimeException("sResponseClass must implements " + "IHttpResponse");
                             }
                             IHttpResponse iHttpResponse = (IHttpResponse) httpResponse;
