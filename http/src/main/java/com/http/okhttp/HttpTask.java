@@ -382,7 +382,10 @@ public class HttpTask {
                 try {
                     calculateTimeDiff(response);
                     if (mResponseClass != null) {
-                        sLog.v(mResponseClass.getSimpleName());
+                        sLog.v(mResponseClass.getName());
+                    }
+                    if (sResponseClass != null) {
+                        sLog.v(sResponseClass.getName());
                     }
                     if (response.isSuccessful()) {
                         String result = response.body().string();
