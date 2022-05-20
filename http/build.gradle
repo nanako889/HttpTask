@@ -24,3 +24,24 @@ dependencies {
     implementation "com.google.code.gson:gson:2.8.9"
     implementation 'com.qbw.l:l:2.0'
 }
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.vanniktech:gradle-maven-publish-plugin:0.17.0'
+    }
+}
+
+allprojects {
+    plugins.withId("com.vanniktech.maven.publish") {
+        mavenPublish {
+            sonatypeHost = "S01"
+        }
+    }
+}
+
+apply plugin: "com.vanniktech.maven.publish"
+
+
