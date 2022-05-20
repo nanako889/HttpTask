@@ -2,7 +2,7 @@
 
 # Download
 
-    to do
+    implementation 'top.qinbaowei:httptask:3.0' 
 
 # Proguard
 
