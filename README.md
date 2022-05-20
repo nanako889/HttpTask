@@ -1,20 +1,10 @@
 # HttpTask
-okhttp util
 
-#download
+# Download
 
-    allprojects {
-		repositories {
-			...
-			maven { url 'https://jitpack.io' }
-		}
-	}
-	
-	dependencies {
-        implementation 'com.github.qbaowei:HttpTask:v1.0.10'
-    }
-    
-#proguard
+    to do
+
+# Proguard
 
     ##---------------Begin: proguard configuration for Gson  ----------
     # Gson uses generic type information stored in a class file when working with fields. Proguard

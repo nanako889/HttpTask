@@ -6,7 +6,7 @@ android {
         minSdkVersion 15
         targetSdkVersion 28
         versionCode 1
-        versionName "1.1.6"
+        versionName "2.5"
     }
     buildTypes {
 
@@ -22,5 +22,5 @@ dependencies {
     implementation "com.squareup.okhttp3:okhttp:3.10.0"
     implementation "com.squareup.okhttp3:logging-interceptor:3.10.0"
     implementation "com.google.code.gson:gson:2.8.0"
-    implementation "com.github.qbaowei:log:v1.1"
+    implementation 'com.qbw.l:l:2.0'
 }
