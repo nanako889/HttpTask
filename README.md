@@ -4,7 +4,7 @@
 
 # Download
 
-    implementation 'top.qinbaowei:httptask:3.0' 
+    implementation 'top.qinbaowei:httptask:3.1' 
 
 # Proguard
 
